@@ -224,6 +224,76 @@ describe("patchDaemonTransport", () => {
         'return process.platform==="linux"?Zc.WebSocket:Zc.Ipc}',
       );
       expect(patched).toContain('Zc.Ipc&&process.platform!=="linux"&&');
+      // The Linux droid resolver must return the same object shape as the
+      // upstream packaged arm ({command,prefixArgs,droidPathForSessions}); a
+      // bare string caused "o is not iterable" at daemon spawn time.
+      expect(patched).toContain(
+        "return{command:d,prefixArgs:[],droidPathForSessions:d}",
+      );
+
+      // Behavioral check: evaluate the patched elt() in isolation and ensure
+      // it builds valid daemon args on Linux (WebSocket path, no --listen ipc).
+      const eltStart = patched.indexOf("function elt(");
+      expect(eltStart).toBeGreaterThan(0);
+      // Skip the destructured parameter list, then brace-count the body.
+      const paramClose = patched.indexOf(")", eltStart);
+      let depth = 0;
+      let eltEnd = -1;
+      for (let i = patched.indexOf("{", paramClose); i < patched.length; i++) {
+        if (patched[i] === "{") depth++;
+        else if (patched[i] === "}") {
+          depth--;
+          if (depth === 0) {
+            eltEnd = i + 1;
+            break;
+          }
+        }
+      }
+      expect(eltEnd).toBeGreaterThan(eltStart);
+      const fsMod = fs;
+      /* eslint-disable @typescript-eslint/no-var-requires */
+      const osMod = require("os") as typeof import("os");
+      const modPath = require("path") as typeof import("path");
+      /* eslint-enable @typescript-eslint/no-var-requires */
+      const eltFile = modPath.join(osMod.tmpdir(), "elt-patched-" + Date.now() + ".js");
+      fsMod.writeFileSync(
+        eltFile,
+        "const Ie={join:(...a)=>a.join('/')};" +
+          "const W={app:{isPackaged:true}};" +
+          'const Zc={Ipc:"ipc",WebSocket:"websocket"};' +
+          'const Tm="127.0.0.1";' +
+          "const Jr=()=>'/home/tester';" +
+          "const Qct=()=>({command:'bun',prefixArgs:['x'],droidPathForSessions:'bun'});" +
+          "const Jct=()=>({});" +
+          'class me extends Error{};' +
+          patched.slice(eltStart, eltEnd) +
+          ";module.exports={elt};",
+      );
+      // A real executable fixture: the resolver verifies X_OK before honoring
+      // FACTORY_DROID_PATH, so a nonexistent path would be (correctly) skipped.
+      const droidFixture = eltFile + ".droid";
+      fsMod.writeFileSync(droidFixture, "#!/bin/sh\n");
+      fsMod.chmodSync(droidFixture, 0o755);
+      try {
+        // Pin the droid resolution so the test never hits the network branch.
+        process.env.FACTORY_DROID_PATH = droidFixture;
+        // eslint-disable-next-line @typescript-eslint/no-var-requires
+        const { elt } = require(eltFile);
+        const ws = elt({ port: 41248, transportMode: "websocket" });
+        expect(ws.command).toBe(droidFixture);
+        expect(ws.args).toContain("daemon");
+        expect(ws.args).toContain("--host");
+        expect(ws.args).toContain("--port");
+        expect(ws.args).not.toContain("--listen");
+        // Empty prefixArgs from the Linux resolver arm means "daemon" leads args.
+        expect(ws.args[0]).toBe("daemon");
+        const ipc = elt({ port: null, transportMode: "ipc" });
+        expect(ipc.args).not.toContain("--listen");
+      } finally {
+        delete process.env.FACTORY_DROID_PATH;
+        fsMod.rmSync(eltFile, { force: true });
+        fsMod.rmSync(eltFile + ".droid", { force: true });
+      }
     } finally {
       fsSync.rmSync(tmpDir, { recursive: true, force: true });
     }

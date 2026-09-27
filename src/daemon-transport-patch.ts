@@ -246,9 +246,15 @@ function buildSystemDroidTernaryReplacement(
   fallbackFn: string,
   fallbackArgFn: string,
 ): string {
+  // The original packaged arm yields {command,prefixArgs:[],droidPathForSessions}
+  // (the app destructures it and spreads prefixArgs), so the Linux resolver
+  // must return the same object shape — returning a bare string produced
+  // "o is not iterable" when the app spawned a daemon itself.
   return (
     `=${appAlias}?(()=>{${SYSTEM_DROID_MARKER}if(process.platform!=="linux")return ${appAlias};` +
+    `try{const d=(()=>{` +
     systemDroidResolverBody() +
+    `})();return{command:d,prefixArgs:[],droidPathForSessions:d}}catch(e){throw e}` +
     `})():${fallbackFn}(${fallbackArgFn}()),`
   );
 }
