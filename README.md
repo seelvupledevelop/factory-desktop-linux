@@ -1,11 +1,38 @@
 # Factory Desktop for Linux
 
+> **⚠️ Not an official source.** This repository is a community fork that
+> repackages Factory Desktop for Linux. It is **not** the official source of
+> Factory Desktop or Droid. The **only official source** is Factory itself —
+> download official releases and accounts only from
+> [factory.ai](https://factory.ai) and the channels Factory operates. Use this
+> port at your own risk.
+
+> **✅ Latest confirmed working package: [`v0.185.0`](https://github.com/seelvupledevelop/factory-desktop-linux/releases/tag/v0.185.0)**
+> (`factory-desktop_0.185.0_amd64.deb` + `Factory-0.185.0.AppImage`, built
+> 2026-09-27). Verified end to end on Linux Mint 22.3: daemon adoption over
+> WebSocket on 127.0.0.1:37643, single user-owned `droid daemon
+> --remote-access` instance, `This Computer → Local` connected, checksums
+> published with the release.
+
 Factory Desktop running natively on Linux, with `.deb`, `.rpm`, and AppImage
 packages built from Factory's official Desktop release.
 
 This community port keeps the familiar Factory interface and adds Linux-native
 window controls, updates, and daemon integration. It is unofficial and is not
 affiliated with or supported by Factory.
+
+## Automatic builds
+
+This fork checks Factory's upstream version **daily at 08:00 UTC** and
+automatically builds and publishes a new Linux release (`.deb`, `.AppImage`,
+and SHA-256 checksums) whenever Factory ships a new Desktop version — no
+manual step needed. Builds are free GitHub Actions runs on this public
+repository. You can also trigger a build manually from the **Actions** tab
+(*Release → Run workflow*) or with:
+
+```bash
+gh workflow run release.yml --ref master
+```
 
 ## Install
 
@@ -232,11 +259,14 @@ Linux compatibility changes are applied through the patch registry in
 ## Release Automation
 
 Every push to `master` that changes the application, packaging, updater, or
-release workflow triggers a GitHub Actions build. The workflow publishes `.deb`,
-`.rpm`, and AppImage assets to the current Factory Desktop release.
+release workflow triggers a GitHub Actions build. The daily 08:00 UTC schedule
+check also creates a new Linux release automatically whenever Factory Desktop
+changes upstream (see [Automatic builds](#automatic-builds)).
 
-It also checks Factory's upstream version daily and creates a new Linux release
-when Factory Desktop changes.
+Newer automated builds appear in
+[Releases](https://github.com/seelvupledevelop/factory-desktop-linux/releases)
+as they are produced; they are not hand-verified. The newest
+**hand-verified** build is called out at the top of this README.
 
 ## Disclaimer
 

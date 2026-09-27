@@ -1,10 +1,25 @@
 name: Release
 
 on:
+  push:
+    branches:
+      - master
+    paths:
+      - 'src/**'
+      - 'packaging/**'
+      - 'patches/**'
+      - 'updater/**'
+      - 'Makefile'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'tsconfig.json'
+      - '.github/workflows/release.yml'
+  schedule:
+    # Daily at 08:00 UTC: check Factory's latest-version endpoint and
+    # auto-build any new upstream release (free on a public repo).
+    - cron: '0 8 * * *'
   workflow_dispatch:
-    # Manual only: run from the Actions tab or
-    # `gh workflow run release.yml --ref master`. No cron, no push triggers —
-    # a build happens only when explicitly requested.
+    # Manual trigger: Actions tab or `gh workflow run release.yml --ref master`
 
 permissions:
   contents: write
