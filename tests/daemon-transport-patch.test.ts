@@ -178,6 +178,57 @@ describe("patchDaemonTransport", () => {
     }
   });
 
+  it("patches Factory 0.185.0 hard-coded transport + ternary droid path", async () => {
+    /* eslint-disable @typescript-eslint/no-var-requires */
+    const asar = require("@electron/asar");
+    const path = require("path");
+    /* eslint-enable @typescript-eslint/no-var-requires */
+    const fsSync = fs;
+    const tmpDir = path.join(
+      process.cwd(),
+      "tests",
+      ".tmp-daemon-0185-" + Date.now(),
+    );
+    const buildDir = path.join(tmpDir, ".vite", "build");
+    fsSync.mkdirSync(buildDir, { recursive: true });
+    // Shapes extracted from the real Factory 0.185.0 main bundle
+    // (.vite/build/index-DbSjjjvD.js), minified names preserved.
+    const bundleContent =
+      "function Wct(){return Zc.Ipc}const Vct=20;" +
+      'function elt({port:e,transportMode:t}){const n=W.app.isPackaged?Ie.join(process.resourcesPath,"bin",process.platform==="win32"?"droid.exe":"droid"):void 0,{command:r,prefixArgs:o,droidPathForSessions:s,extraEnv:i}=n?{command:n,prefixArgs:[],droidPathForSessions:n}:Qct(Jct()),c=[...o,"daemon",...s?["--droid-path",s]:[]];if(t===Zc.Ipc&&c.push("--listen","ipc"),W.app.isPackaged||c.push("--debug"),t===Zc.WebSocket){if(e===null)throw new me("WebSocket daemon transport requires a port");c.push("--host",Tm),c.push("--port",String(e))}return{command:r,args:c,cwd:Jr(),env:{...i??{},FACTORY_HOME_OVERRIDE:Jr()}}}' +
+      'class DKe{constructor(){this.state=rr.Stopped,this.currentPort=null,this.transportMode=null,this.processGeneration=0}async startInternal(){this.state=rr.Starting,this.ipcDaemonReady=!1;const t=await this.resolveTransportMode(),n=t===Zc.Ipc,r=n?null:this.currentPort??this.selectPort();this.currentPort=r;const{command:o,args:s,cwd:i,env:c}=elt({port:r,transportMode:t});ve("[daemon] Starting daemon",{command:o,args:s,cwd:i,port:r??void 0,state:t});this.processGeneration++,ze.endPhase(),n?this.startIpcReadyTimeout():this.startHealthPoll()}}';
+    fsSync.writeFileSync(path.join(buildDir, "index-0185.js"), bundleContent);
+    const asarPath = path.join(tmpDir, "app.asar");
+    await asar.createPackage(tmpDir, asarPath);
+
+    try {
+      const patchResult = await patchDaemonTransport({ asarPath });
+      expect(patchResult.success).toBe(true);
+      expect(patchResult.patched).toBe(true);
+      const ids = patchResult.patches.map((p) => p.id);
+      expect(ids).toContain("force-websocket-on-linux-0185");
+      expect(ids).toContain("prevent-listen-ipc-on-linux");
+      expect(ids).toContain("use-system-droid-cli-0185");
+      expect(ids).toContain("adopt-system-droid-daemon");
+
+      const validation = validateDaemonTransport({ asarPath });
+      expect(validation.valid).toBe(true);
+      expect(validation.forcesWebSocketOnLinux).toBe(true);
+      expect(validation.hasSystemDroidPathPatch).toBe(true);
+      expect(validation.hasSystemDaemonAdoptionPatch).toBe(true);
+
+      const patched = asar
+        .extractFile(asarPath, ".vite/build/index-0185.js")
+        .toString("utf-8");
+      expect(patched).toContain(
+        'return process.platform==="linux"?Zc.WebSocket:Zc.Ipc}',
+      );
+      expect(patched).toContain('Zc.Ipc&&process.platform!=="linux"&&');
+    } finally {
+      fsSync.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
   // Integration test with actual built asar. Opt-in only: the local build dir
   // may be stale and should not make the normal Jest suite environment-dependent.
   const builtAsarPath =
