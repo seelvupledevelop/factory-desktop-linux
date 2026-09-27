@@ -108,7 +108,7 @@ jobs:
 
       - name: Build Linux app and package
         run: |
-          node dist/cli.js build-all --factory-version "${{ needs.check-and-release.outputs.version }}" --targets deb,rpm,appimage
+          node dist/cli.js build-all --factory-version "${{ needs.check-and-release.outputs.version }}" --targets deb,appimage
 
       - name: Verify .deb was produced
         run: |
@@ -121,17 +121,6 @@ jobs:
           echo "Produced: $DEB"
           dpkg-deb --info "$DEB" | grep -E 'Package|Version|Architecture'
 
-      - name: Verify .rpm was produced
-        run: |
-          RPM=$(ls -1t dist/*.rpm 2>/dev/null | head -1)
-          if [ -z "$RPM" ]; then
-            echo "No .rpm found in dist/" >&2
-            exit 1
-          fi
-          echo "RPM_PATH=$RPM" >> $GITHUB_ENV
-          echo "Produced: $RPM"
-          rpm -qpi "$RPM" 2>/dev/null | grep -E 'Name|Version|Architecture' || true
-
       - name: Verify .AppImage was produced
         run: |
           APPIMAGE=$(ls -1t dist/*.AppImage 2>/dev/null | head -1)
@@ -142,6 +131,13 @@ jobs:
           echo "APPIMAGE_PATH=$APPIMAGE" >> $GITHUB_ENV
           echo "Produced: $APPIMAGE"
           ls -lh "$APPIMAGE"
+
+      - name: Generate SHA256 checksums
+        run: |
+          cd "$(dirname "$DEB_PATH")"
+          sha256sum "$(basename "$DEB_PATH")" "$(basename "$APPIMAGE_PATH")" > checksums.txt
+          cat checksums.txt
+          echo "CHECKSUMS_PATH=$(pwd)/checksums.txt" >> $GITHUB_ENV
 
       - name: Extract version from .deb
         run: |
@@ -200,13 +196,13 @@ jobs:
           if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
             echo "Release $RELEASE_TAG already exists — updating asset, notes, and tag."
             gh release upload "$RELEASE_TAG" \
-              "$DEB_PATH" "$RPM_PATH" "$APPIMAGE_PATH" --clobber
+              "$DEB_PATH" "$APPIMAGE_PATH" "$CHECKSUMS_PATH" --clobber
             gh release edit "$RELEASE_TAG" --notes "$RELEASE_NOTES"
           else
             gh release create "$RELEASE_TAG" \
               --title "Factory Desktop $FACTORY_VERSION (Linux)" \
               --notes "$RELEASE_NOTES" \
-              "$DEB_PATH" "$RPM_PATH" "$APPIMAGE_PATH"
+              "$DEB_PATH" "$APPIMAGE_PATH" "$CHECKSUMS_PATH"
           fi
 
           # Move the tag to the current commit via the GitHub API so
@@ -222,20 +218,20 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Upload checksums as artifact
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: factory-desktop-${{ env.FACTORY_VERSION }}-checksums
+          path: dist/checksums.txt
+          if-no-files-found: warn
+
       - name: Upload .deb as artifact
         if: always()
         uses: actions/upload-artifact@v7
         with:
           name: factory-desktop-${{ env.FACTORY_VERSION }}-deb
           path: dist/*.deb
-          if-no-files-found: warn
-
-      - name: Upload .rpm as artifact
-        if: always()
-        uses: actions/upload-artifact@v7
-        with:
-          name: factory-desktop-${{ env.FACTORY_VERSION }}-rpm
-          path: dist/*.rpm
           if-no-files-found: warn
 
       - name: Upload .AppImage as artifact
