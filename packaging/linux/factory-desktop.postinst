@@ -62,6 +62,12 @@ if [ -d "$BUILDER_STAGED" ]; then
     rm -rf /opt/factory-desktop/update-builder
     cp -r "$BUILDER_STAGED" /opt/factory-desktop/update-builder
 fi
+
+# Ship the uninstaller at /usr/bin/factory-uninstall (staged in the app dir).
+UNINSTALL_STAGED="$APP_DIR/.factory-linux/updater/factory-uninstall.sh"
+if [ -f "$UNINSTALL_STAGED" ]; then
+    install -m755 "$UNINSTALL_STAGED" /usr/bin/factory-uninstall
+fi
 # Create the ~/.factory/automations directory for each logged-in user.
 # The app checks for this directory on startup and logs an ENOENT warning
 # if it doesn't exist. Creating it here suppresses the warning.

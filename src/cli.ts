@@ -886,6 +886,19 @@ program
         }
       }
 
+      // Catch-up staging for the packaged uninstaller (same --prepackaged
+      // constraint as the updater binary above).
+      {
+        const uninstallerSrc = path.join(process.cwd(), "packaging", "linux", "factory-uninstall.sh");
+        const uninstallerDest = path.join(appDir, ".factory-linux", "updater", "factory-uninstall.sh");
+        if (fs.existsSync(uninstallerSrc) && !fs.existsSync(uninstallerDest)) {
+          fs.mkdirSync(path.dirname(uninstallerDest), { recursive: true });
+          fs.copyFileSync(uninstallerSrc, uninstallerDest);
+          fs.chmodSync(uninstallerDest, 0o755);
+          process.stdout.write(`✓ Staged uninstaller into app dir (was missing)\n`);
+        }
+      }
+
       // Step 1: Build packages
       const buildResult = buildPackages({
         appDir,
@@ -2781,6 +2794,13 @@ program
       const droidServiceFile = path.join(projectRoot, "packaging", "linux", "factory-droid-daemon.service");
       if (fs.existsSync(droidServiceFile)) {
         fs.copyFileSync(droidServiceFile, path.join(updaterStagingDir, "factory-droid-daemon.service"));
+      }
+
+      // Packaged uninstaller — postinst installs it as /usr/bin/factory-uninstall.
+      const uninstallerFile = path.join(projectRoot, "packaging", "linux", "factory-uninstall.sh");
+      if (fs.existsSync(uninstallerFile)) {
+        fs.copyFileSync(uninstallerFile, path.join(updaterStagingDir, "factory-uninstall.sh"));
+        fs.chmodSync(path.join(updaterStagingDir, "factory-uninstall.sh"), 0o755);
       }
 
       if (process.env.PACKAGE_WITH_UPDATER !== "0") {
