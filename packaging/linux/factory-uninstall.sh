@@ -29,21 +29,39 @@ for arg in "$@"; do
   esac
 done
 
+# Resolve the real user when run under sudo (elevated runs have HOME=/root,
+# which would otherwise purge root's home instead of the actual user's).
+if [ "$(id -u)" = "0" ] && [ -n "${SUDO_USER:-}" ] && [ "$SUDO_USER" != "root" ]; then
+  REAL_USER="$SUDO_USER"
+  REAL_HOME="$(getent passwd "$SUDO_USER" | cut -d: -f6)"
+  USER_MACHINE="${SUDO_USER}@.host"
+else
+  REAL_USER="$(id -un)"
+  REAL_HOME="$HOME"
+  USER_MACHINE=""
+fi
+
+user_ctl() {
+  if [ -n "$USER_MACHINE" ]; then
+    systemctl --user --machine="$USER_MACHINE" "$@"
+  else
+    systemctl --user "$@"
+  fi
+}
+
 echo "==> Stopping Factory processes"
 pkill -f "/opt/Factory/factory-desktop" 2>/dev/null || true
 pkill -f "droid daemon" 2>/dev/null || true
 sleep 1
 
-echo "==> Stopping and disabling user services"
+echo "==> Stopping and disabling user services (user: $REAL_USER)"
 for unit in factory-droid-daemon.service factory-update-manager.service; do
-  systemctl --user stop    "$unit" 2>/dev/null || true
-  systemctl --user disable "$unit" 2>/dev/null || true
+  user_ctl stop    "$unit" 2>/dev/null || true
+  user_ctl disable "$unit" 2>/dev/null || true
 done
 
 echo "==> Removing the factory-desktop package"
 if command -v apt-get >/dev/null 2>&1 && dpkg -s factory-desktop >/dev/null 2>&1; then
-  # Allow self-removal: the running script is copied out of the package,
-  # but apt may still complain; keep going either way.
   sudo apt-get remove -y factory-desktop 2>/dev/null || sudo dpkg -r factory-desktop || true
 elif command -v dnf >/dev/null 2>&1 && rpm -q factory-desktop >/dev/null 2>&1; then
   sudo dnf remove -y factory-desktop || true
@@ -54,26 +72,26 @@ else
 fi
 
 echo "==> Cleaning user-level integration"
-rm -f "$HOME/.config/systemd/user/factory-droid-daemon.service" \
-      "$HOME/.config/systemd/user/factory-update-manager.service" \
-      "$HOME/.local/share/applications/factory-desktop.desktop"
-sed -i '/x-scheme-handler\/factory-desktop/d' "$HOME/.config/mimeapps.list" 2>/dev/null || true
-systemctl --user daemon-reload 2>/dev/null || true
-update-desktop-database "$HOME/.local/share/applications" 2>/dev/null || true
+rm -f "$REAL_HOME/.config/systemd/user/factory-droid-daemon.service" \
+      "$REAL_HOME/.config/systemd/user/factory-update-manager.service" \
+      "$REAL_HOME/.local/share/applications/factory-desktop.desktop"
+sed -i '/x-scheme-handler\/factory-desktop/d' "$REAL_HOME/.config/mimeapps.list" 2>/dev/null || true
+user_ctl daemon-reload 2>/dev/null || true
+update-desktop-database "$REAL_HOME/.local/share/applications" 2>/dev/null || true
 
 if [ "$PURGE" -eq 1 ]; then
-  echo "==> Purging all Factory user data"
-  rm -rf "$HOME/.factory" \
-         "$HOME/.config/Factory" \
-         "$HOME/.cache/factory-desktop" \
-         "$HOME/.cache/factory-update-manager" \
-         "$HOME/.local/state/factory-update-manager" \
-         "$HOME/.config/factory-update-manager"
+  echo "==> Purging all Factory user data ($REAL_HOME)"
+  rm -rf "$REAL_HOME/.factory" \
+         "$REAL_HOME/.config/Factory" \
+         "$REAL_HOME/.cache/factory-desktop" \
+         "$REAL_HOME/.cache/factory-update-manager" \
+         "$REAL_HOME/.local/state/factory-update-manager" \
+         "$REAL_HOME/.config/factory-update-manager"
   if [ "$KEEP_DROID" -eq 1 ]; then
-    echo "    Keeping droid CLI as requested ($HOME/.local/bin/droid)"
-  elif [ -e "$HOME/.local/bin/droid" ]; then
-    echo "    Removing droid CLI ($HOME/.local/bin/droid) — use --keep-droid to keep it"
-    rm -f "$HOME/.local/bin/droid"
+    echo "    Keeping droid CLI as requested ($REAL_HOME/.local/bin/droid)"
+  elif [ -e "$REAL_HOME/.local/bin/droid" ]; then
+    echo "    Removing droid CLI ($REAL_HOME/.local/bin/droid) — use --keep-droid to keep it"
+    rm -f "$REAL_HOME/.local/bin/droid"
   fi
 else
   echo "==> Keeping Factory data (login, sessions, settings)."
