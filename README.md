@@ -7,12 +7,8 @@
 > [factory.ai](https://factory.ai) and the channels Factory operates. Use this
 > port at your own risk.
 
-> **✅ Latest confirmed working package: [`v0.185.0`](https://github.com/seelvupledevelop/factory-desktop-linux/releases/tag/v0.185.0)**
-> (`factory-desktop_0.185.0_amd64.deb` + `Factory-0.185.0.AppImage`, built
-> 2026-09-27). Verified end to end on Linux Mint 22.3: daemon adoption over
-> WebSocket on 127.0.0.1:37643, single user-owned `droid daemon
-> --remote-access` instance, `This Computer → Local` connected, checksums
-> published with the release.
+> **✅ Latest confirmed working package: [`v0.187.0`](https://github.com/seelvupledevelop/factory-desktop-linux/releases/tag/v0.187.0)**
+> (`factory-desktop_0.187.0_amd64.deb` + `Factory-0.187.0.AppImage`, CI-built 2026-09-30). Verified end to end on Linux Mint 22.3 **from a cold start** (no prior droid login): browser sign-in completes via the `factory-desktop://` scheme handler, daemon healthy on 127.0.0.1:37643, `droid doctor` authenticated, app↔daemon WebSocket established, and a real `droid exec` session ran through the daemon. This release also **fixes browser sign-in** — earlier packages (≤ v0.185.0) shipped without the URL-scheme handler, which broke sign-in on fresh machines. Checksums published with the release.
 
 Factory Desktop running natively on Linux, with `.deb`, `.rpm`, and AppImage
 packages built from Factory's official Desktop release.
