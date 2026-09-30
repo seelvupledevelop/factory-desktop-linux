@@ -219,6 +219,40 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Mirror release to artifacts repo
+        env:
+          MIRROR_TOKEN: ${{ secrets.MIRROR_TOKEN }}
+          PRIVATE_REPO: seelvupledevelop/factory-desktop-linux-artifacts
+        run: |
+          if [ -z "$MIRROR_TOKEN" ]; then
+            echo "MIRROR_TOKEN secret not set — skipping private mirror."
+            exit 0
+          fi
+          export GH_TOKEN="$MIRROR_TOKEN"
+          VERSION="${FACTORY_VERSION:?FACTORY_VERSION missing}"
+          TAG="v$VERSION"
+          cp "$CHECKSUMS_PATH" "checksums-$VERSION.txt"
+          NOTES="Mirrored automatically from the public CI build of factory-desktop-linux.
+
+          **Install (Debian/Ubuntu/Mint):**
+          \`\`\`bash
+          sudo apt install ./factory-desktop_${VERSION}_amd64.deb
+          \`\`\`
+
+          **AppImage:**
+          \`\`\`bash
+          chmod +x Factory-${VERSION}.AppImage && ./Factory-${VERSION}.AppImage
+          \`\`\`"
+          if gh release view "$TAG" --repo "$PRIVATE_REPO" >/dev/null 2>&1; then
+            gh release upload "$TAG" --repo "$PRIVATE_REPO" --clobber \
+              "$DEB_PATH" "$APPIMAGE_PATH" "checksums-$VERSION.txt"
+          else
+            gh release create "$TAG" --repo "$PRIVATE_REPO" \
+              --title "Factory Desktop $VERSION (Linux) — deb + AppImage" \
+              --notes "$NOTES" --latest \
+              "$DEB_PATH" "$APPIMAGE_PATH" "checksums-$VERSION.txt"
+          fi
+
       - name: Upload checksums as artifact
         if: always()
         uses: actions/upload-artifact@v7
