@@ -899,6 +899,18 @@ program
         }
       }
 
+      // Catch-up staging for the home-repair helper (same constraint).
+      {
+        const repairHomeSrc = path.join(process.cwd(), "packaging", "linux", "factory-repair-home.sh");
+        const repairHomeDest = path.join(appDir, ".factory-linux", "updater", "factory-repair-home.sh");
+        if (fs.existsSync(repairHomeSrc) && !fs.existsSync(repairHomeDest)) {
+          fs.mkdirSync(path.dirname(repairHomeDest), { recursive: true });
+          fs.copyFileSync(repairHomeSrc, repairHomeDest);
+          fs.chmodSync(repairHomeDest, 0o755);
+          process.stdout.write(`✓ Staged home-repair helper into app dir (was missing)\n`);
+        }
+      }
+
       // Step 1: Build packages
       const buildResult = buildPackages({
         appDir,
@@ -2801,6 +2813,14 @@ program
       if (fs.existsSync(uninstallerFile)) {
         fs.copyFileSync(uninstallerFile, path.join(updaterStagingDir, "factory-uninstall.sh"));
         fs.chmodSync(path.join(updaterStagingDir, "factory-uninstall.sh"), 0o755);
+      }
+
+      // Home-ownership repair helper — postinst installs it as
+      // /usr/bin/factory-repair-home; the daemon unit runs it as ExecStartPre.
+      const repairHomeFile = path.join(projectRoot, "packaging", "linux", "factory-repair-home.sh");
+      if (fs.existsSync(repairHomeFile)) {
+        fs.copyFileSync(repairHomeFile, path.join(updaterStagingDir, "factory-repair-home.sh"));
+        fs.chmodSync(path.join(updaterStagingDir, "factory-repair-home.sh"), 0o755);
       }
 
       if (process.env.PACKAGE_WITH_UPDATER !== "0") {
