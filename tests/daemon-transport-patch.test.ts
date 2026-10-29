@@ -299,6 +299,80 @@ describe("patchDaemonTransport", () => {
     }
   });
 
+  it("patches Factory 0.208.0 initLifecycle chunk (dotted enum alias)", async () => {
+    /* eslint-disable @typescript-eslint/no-var-requires */
+    const asar = require("@electron/asar");
+    const path = require("path");
+    /* eslint-enable @typescript-eslint/no-var-requires */
+    const fsSync = fs;
+    const tmpDir = path.join(
+      process.cwd(),
+      "tests",
+      ".tmp-daemon-0208-" + Date.now(),
+    );
+    const buildDir = path.join(tmpDir, ".vite", "build");
+    fsSync.mkdirSync(buildDir, { recursive: true });
+    // Shapes extracted from the real Factory 0.208.0 build shipped in
+    // the deb (chunk .vite/build/initLifecycle-D3kvsJfz.js), minified
+    // names preserved. From 0.208.0 the daemon spawn code moved out of
+    // index-*.js into initLifecycle-*.js and the transport enum became a
+    // module-alias chain (s.DesktopDaemonTransportMode.Ipc).
+    const bundleContent =
+      'const xt=new hB;function mB(){return s.DesktopDaemonTransportMode.Ipc}const Ro=new Set;' +
+      'function SB({port:e,transportMode:t}){const n=k.app.isPackaged?Q.join(process.resourcesPath,"bin",process.platform==="win32"?"droid.exe":"droid"):void 0,{command:o,prefixArgs:r,droidPathForSessions:i,extraEnv:a}=n?{command:n,prefixArgs:[],droidPathForSessions:n}:_B(bB()),c=[...r,"daemon",...i?["--droid-path",i]:[]];if(t===s.DesktopDaemonTransportMode.Ipc&&c.push("--listen","ipc"),k.app.isPackaged||c.push("--debug"),t===s.DesktopDaemonTransportMode.WebSocket){if(e===null)throw new s.MetaError("WebSocket daemon transport requires a port");c.push("--host",ra),c.push("--port",String(e)),process.platform==="win32"?c.push("--parent-pid",String(process.pid)):c.push("--liveness-fd","3")}const l=s.getDesktopHomeDir();return{command:o,args:c,cwd:l,env:{...a??{},FACTORY_HOME_OVERRIDE:l}}}' +
+      'class x9e{constructor(){this.state=He.Stopped,this.currentPort=null,this.transportMode=null,this.ipcDaemonReady=false,this.processGeneration=0}selectPort(){return Fp()}async resolveTransportMode(){return mB()}startHealthPoll(){}async startInternal(){this.state=He.Starting,this.ipcDaemonReady=!1;const t=await this.resolveTransportMode(),n=t===s.DesktopDaemonTransportMode.Ipc,o=n?null:this.currentPort??this.selectPort();this.currentPort=o;const{command:r,args:i,cwd:a,env:c}=SB({port:o,transportMode:t});s.logInfo("[daemon] Starting daemon",{command:r,args:i,cwd:a,port:o??void 0,state:t});this.processGeneration++,s.startupTracker.endPhase(),n?this.startIpcReadyTimeout():this.startHealthPoll()}}';
+    fsSync.writeFileSync(
+      path.join(buildDir, "initLifecycle-D3kvsJfz.js"),
+      bundleContent,
+    );
+    // An unrelated index chunk must not break the scan of the new chunk.
+    fsSync.writeFileSync(path.join(buildDir, "index-DlQW8R5W.js"), '"use strict";require("./initLifecycle-D3kvsJfz.js");');
+    fsSync.writeFileSync(path.join(buildDir, "main.js"), '"use strict";require("./index-DlQW8R5W.js");');
+    const asarPath = path.join(tmpDir, "app.asar");
+    await asar.createPackage(tmpDir, asarPath);
+
+    try {
+      const patchResult = await patchDaemonTransport({ asarPath });
+      expect(patchResult.success).toBe(true);
+      expect(patchResult.patched).toBe(true);
+      const ids = patchResult.patches.map((p) => p.id);
+      expect(ids).toContain("force-websocket-on-linux-0185");
+      expect(ids).toContain("prevent-listen-ipc-on-linux");
+      expect(ids).toContain("use-system-droid-cli-0185");
+      expect(ids).toContain("adopt-system-droid-daemon");
+
+      const validation = validateDaemonTransport({ asarPath });
+      expect(validation.valid).toBe(true);
+      expect(validation.forcesWebSocketOnLinux).toBe(true);
+      expect(validation.hasListenIpcGuard).toBe(true);
+      expect(validation.hasSystemDroidPathPatch).toBe(true);
+      expect(validation.hasSystemDaemonAdoptionPatch).toBe(true);
+
+      const patched = asar
+        .extractFile(asarPath, ".vite/build/initLifecycle-D3kvsJfz.js")
+        .toString("utf-8");
+      expect(patched).toContain(
+        'return process.platform==="linux"?s.DesktopDaemonTransportMode.WebSocket:s.DesktopDaemonTransportMode.Ipc}',
+      );
+      expect(patched).toContain(
+        's.DesktopDaemonTransportMode.Ipc&&process.platform!=="linux"&&c.push("--listen","ipc")',
+      );
+      expect(patched).toContain(
+        "return{command:d,prefixArgs:[],droidPathForSessions:d}",
+      );
+      expect(patched).toContain("adopted_system_daemon");
+      expect(patched).toContain("const servicePort=37643");
+      // The bundled arm is no longer consulted: the resolver's Linux branch
+      // replaced the destructuring ternary (the dead `const n=...⋾0` prefix
+      // remains, as in the 0.185.0 patched form).
+      expect(patched).toContain(
+        "=n?(()=>{/* linux-system-droid-cli-patch */if(process.platform!==\"linux\")return n;",
+      );
+    } finally {
+      fsSync.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
   // Integration test with actual built asar. Opt-in only: the local build dir
   // may be stale and should not make the normal Jest suite environment-dependent.
   const builtAsarPath =

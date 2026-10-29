@@ -184,7 +184,7 @@ function buildTransportResolverReplacement(
  * `process.platform!=="linux"&&` before the push.
  */
 const LISTEN_IPC_PUSH_REGEX =
-  /([\w$]+\.Ipc)&&([\w$]+\.push\("--listen","ipc"\))/;
+  /((?:[\w$]+\.)*[\w$]+\.Ipc)&&([\w$]+\.push\("--listen","ipc"\))/;
 
 /**
  * Build the replacement for the --listen ipc push.
@@ -262,17 +262,20 @@ function buildSystemDroidTernaryReplacement(
 /**
  * Factory Desktop 0.185.0 removed the DesktopDaemonIpc Statsig flag: the
  * transport resolver is now a hard-coded `function <name>(){return <E>.Ipc}`.
- * On Linux we return the WebSocket variant so the app launches the daemon
- * with --host/--port and talks WebSocket (the transport that works on Linux).
+ * From 0.208.0 the enum lives behind a module-alias chain
+ * (`s.DesktopDaemonTransportMode.Ipc`), so the alias group must tolerate a
+ * dotted chain. On Linux we return the WebSocket variant so the app launches
+ * the daemon with --host/--port and talks WebSocket (the transport that
+ * works on Linux).
  */
 const TRANSPORT_RESOLVER_0185_REGEX =
-  /(function ([\w$]+)\(\)\{)(return )([\w$]+)\.Ipc\}/;
+  /(function ([\w$]+)\(\)\{)(return )((?:[\w$]+\.)*[\w$]+)\.Ipc\}/;
 
 /** The 0.185.0 resolver after patching (marker sits between `{` and `return`). */
 const PATCHED_TRANSPORT_0185_REGEX = new RegExp(
   "function [\\w$]+\\(\\)\\{" +
     PATCH_MARKER.replace(/\*/g, "\\*") +
-    'return process\\.platform==="linux"\\?[\\w$]+\\.WebSocket:[\\w$]+\\.Ipc\\}',
+    'return process\\.platform==="linux"\\?[\\w$.]+\\.WebSocket:[\\w$.]+\\.Ipc\\}',
 );
 
 function buildTransportResolver0185Replacement(
@@ -287,7 +290,7 @@ function buildTransportResolver0185Replacement(
 }
 
 const DAEMON_START_ADOPTION_REGEX =
-  /this\.currentPort=([\w$]+);const\{command:([\w$]+),args:([\w$]+),cwd:([\w$]+),env:([\w$]+)\}=([\w$]+)\(\{port:\1,transportMode:([\w$]+)\}\);([\w$]+)\("\[daemon\] Starting daemon"/;
+  /this\.currentPort=([\w$]+);const\{command:([\w$]+),args:([\w$]+),cwd:([\w$]+),env:([\w$]+)\}=([\w$]+)\(\{port:\1,transportMode:([\w$]+)\}\);((?:[\w$]+\.)*[\w$]+)\("\[daemon\] Starting daemon"/;
 
 function findStartupTrackerAlias(content: string): string | null {
   const match = content.match(/this\.processGeneration\+\+,([\w$]+)\.endPhase\(\),/);
