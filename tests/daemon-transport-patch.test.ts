@@ -373,6 +373,99 @@ describe("patchDaemonTransport", () => {
     }
   });
 
+  it("hard-fails when nothing matches and no patch markers exist (build gate)", async () => {
+    /* eslint-disable @typescript-eslint/no-var-requires */
+    const asar = require("@electron/asar");
+    const path = require("path");
+    /* eslint-enable @typescript-eslint/no-var-requires */
+    const fsSync = fs;
+    const tmpDir = path.join(
+      process.cwd(),
+      "tests",
+      ".tmp-daemon-gate-" + Date.now(),
+    );
+    const buildDir = path.join(tmpDir, ".vite", "build");
+    fsSync.mkdirSync(buildDir, { recursive: true });
+    // A bundle with no daemon code at all (like the 0.208.0 chunks that do
+    // not own the daemon): nothing matches, no markers.
+    fsSync.writeFileSync(
+      path.join(buildDir, "index-Unrelated.js"),
+      '"use strict";const unrelated=1;module.exports={unrelated};',
+    );
+    const asarPath = path.join(tmpDir, "app.asar");
+    await asar.createPackage(tmpDir, asarPath);
+
+    try {
+      const result = await patchDaemonTransport({ asarPath });
+      expect(result.success).toBe(false);
+      expect(result.patched).toBe(false);
+      expect(result.errors.join(" ")).toContain("matched nothing in the asar");
+    } finally {
+      fsSync.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  it("tolerateMissingTarget hard-fails when no bundles exist and markers are absent", async () => {
+    /* eslint-disable @typescript-eslint/no-var-requires */
+    const asar = require("@electron/asar");
+    const path = require("path");
+    /* eslint-enable @typescript-eslint/no-var-requires */
+    const fsSync = fs;
+    const tmpDir = path.join(
+      process.cwd(),
+      "tests",
+      ".tmp-daemon-nobundles-" + Date.now(),
+    );
+    // No .vite/build directory at all → findMainBundleFiles returns [] and
+    // the raw-marker scan finds nothing.
+    const asarPath = path.join(tmpDir, "app.asar");
+    await asar.createPackage(tmpDir, asarPath);
+
+    try {
+      const result = await patchDaemonTransport({
+        asarPath,
+        tolerateMissingTarget: true,
+      });
+      expect(result.success).toBe(false);
+      expect(result.errors.join(" ")).toContain("matched nothing and no patch markers");
+    } finally {
+      fsSync.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  it("tolerateMissingTarget still succeeds when markers are already present", async () => {
+    /* eslint-disable @typescript-eslint/no-var-requires */
+    const asar = require("@electron/asar");
+    const path = require("path");
+    /* eslint-enable @typescript-eslint/no-var-requires */
+    const fsSync = fs;
+    const tmpDir = path.join(
+      process.cwd(),
+      "tests",
+      ".tmp-daemon-already-" + Date.now(),
+    );
+    // No .vite/build bundles, but the archive already carries the marker
+    // (e.g. the whole main bundle lives elsewhere and was patched before).
+    fsSync.mkdirSync(tmpDir, { recursive: true });
+    fsSync.writeFileSync(
+      path.join(tmpDir, "somewhere-else.js"),
+      '/* linux-system-droid-cli-patch */const patchedBefore=1;',
+    );
+    const asarPath = path.join(tmpDir, "app.asar");
+    await asar.createPackage(tmpDir, asarPath);
+
+    try {
+      const result = await patchDaemonTransport({
+        asarPath,
+        tolerateMissingTarget: true,
+      });
+      expect(result.success).toBe(true);
+      expect(result.patched).toBe(false);
+    } finally {
+      fsSync.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
   // Integration test with actual built asar. Opt-in only: the local build dir
   // may be stale and should not make the normal Jest suite environment-dependent.
   const builtAsarPath =

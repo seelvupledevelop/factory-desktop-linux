@@ -338,6 +338,20 @@ function buildSystemDaemonAdoptionReplacement(
  * VAL-DAEMON-001: The app must not emit `--listen ipc` for Linux droid.
  * VAL-DAEMON-002: The daemon must reach healthy runtime state.
  */
+/**
+ * Cheap marker probe over the raw asar bytes (the archive concatenates
+ * file payloads, so a plain substring search is reliable for our patch
+ * markers). Used by the hard-failure gate when no regex matches.
+ */
+function asarRawContains(asarPath: string, needle: string): boolean {
+  try {
+    const buf = fs.readFileSync(asarPath);
+    return buf.indexOf(Buffer.from(needle, "utf-8")) !== -1;
+  } catch {
+    return false;
+  }
+}
+
 export async function patchDaemonTransport(
   options: DaemonTransportPatchOptions,
 ): Promise<DaemonTransportPatchResult> {
@@ -367,8 +381,12 @@ export async function patchDaemonTransport(
       "Could not find the main Vite bundle file (.vite/build/index-*.js) in the asar. " +
       "The asar structure may have changed in a newer Factory Desktop version.";
 
-    if (options.tolerateMissingTarget) {
-      warnings.push(message + " Skipping patch (tolerateMissingTarget=true).");
+    // Even with tolerateMissingTarget: if the patch markers are nowhere in
+    // the asar, nothing was ever patched — shipping this deb would repeat
+    // the 0.208.0 regression (app spawning a nonexistent
+    // resources/bin/droid). Hard-fail instead of silently succeeding.
+    if (options.tolerateMissingTarget && asarRawContains(options.asarPath, SYSTEM_DROID_MARKER)) {
+      warnings.push(message + " Markers present — already patched. Skipping (tolerateMissingTarget=true).");
       return {
         success: true,
         patched: false,
@@ -381,6 +399,15 @@ export async function patchDaemonTransport(
       };
     }
 
+    if (options.tolerateMissingTarget) {
+      errors.push(
+        message +          "Daemon-transport patch matched nothing and no patch markers are " +
+          "present anywhere in the asar. Refusing to ship an unpatched deb."
+      );
+    } else {
+      errors.push(message);
+    }
+
     return {
       success: false,
       patched: false,
@@ -388,7 +415,7 @@ export async function patchDaemonTransport(
       patchedHash: originalHash,
       patchCount: 0,
       patches: [],
-      errors: [message],
+      errors,
       warnings,
     };
   }
@@ -642,6 +669,28 @@ export async function patchDaemonTransport(
     };
   }
 
+  if (totalPatchCount === 0) {
+    // Build gate (VAL-DAEMON-001/002): refuse to let the packaging pass
+    // silently ship an unpatched asar. If the markers exist, a previous
+    // pass already patched this asar (still fine). If not, the upstream
+    // bundle shape changed and shipping it would produce a desktop that
+    // spawns a nonexistent resources/bin/droid.
+    if (asarRawContains(options.asarPath, SYSTEM_DROID_MARKER)) {
+      warnings.push(
+        "No new patches were applied, but daemon-transport patch markers " +
+          "are present — the asar was already patched.",
+      );
+    } else {
+      errors.push(
+        "Daemon-transport patch matched nothing in the asar and no patch " +
+          "markers are present. The upstream bundle shape has changed; " +
+          "shipping this deb would make the app spawn a nonexistent " +
+          "resources/bin/droid. Add a regex for the new upstream shape in " +
+          "src/daemon-transport-patch.ts — do not disable this gate.",
+      );
+    }
+  }
+
   if (errors.length > 0) {
     return {
       success: false,
@@ -655,15 +704,9 @@ export async function patchDaemonTransport(
     };
   }
 
-  if (totalPatchCount === 0) {
-    warnings.push(
-      "No patches were applied. The asar may already be patched, or the " +
-        "target code patterns may have changed.",
-    );
-  }
-
+  // Nothing matched and no markers were present: hard-failed above.
   return {
-    success: true,
+    success: totalPatchCount > 0,
     patched: totalPatchCount > 0,
     originalHash,
     patchedHash,
