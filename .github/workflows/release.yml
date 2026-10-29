@@ -177,6 +177,10 @@ jobs:
           - systemd --user service unit
           - polkit policy
 
+          **Compatibility:**
+          - Verified running on **Linux Mint** (x64) — current production install as of $BUILD_DATE
+          - Debian/Ubuntu-based distros (.deb)
+
           **Install (Debian/Ubuntu):**
           \`\`\`bash
           sudo dpkg -i factory-desktop_${FACTORY_VERSION}_amd64.deb
