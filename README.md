@@ -135,6 +135,67 @@ Factory first adopts an already healthy global daemon. If Droid was missing,
 Desktop installs it globally, restarts the service, and waits for it to become
 healthy before considering a direct fallback.
 
+## Reaching Factory from the web app
+
+The web app at [app.factory.ai](https://app.factory.ai) runs no agent locally —
+it talks to the Droid daemon on this computer. For the web app to reach this
+machine, the daemon must be running and the computer must be registered for
+Remote Control. Closing Factory Desktop stops the daemon it started, so for
+web-only use start the daemon yourself.
+
+### 1. Register this computer (once)
+
+```bash
+droid computer register -y
+droid computer list
+```
+
+`droid computer list` should show an `active` row ending in `(this machine)`.
+Registration survives reboots. Re-run `register -y` after a purge/reinstall, or
+when the daemon logs `Remote access requires a registered computer`.
+
+### 2. Start the daemon
+
+Native packages install `factory-droid-daemon.service` as a systemd **user**
+service:
+
+```bash
+systemctl --user enable --now factory-droid-daemon.service
+systemctl --user status factory-droid-daemon.service
+```
+
+Or run it in the foreground from a terminal (keep the terminal open):
+
+```bash
+droid daemon --host 127.0.0.1 --port 37643 --remote-access
+```
+
+`--remote-access` enables Remote Control for the daemon, and the packaged systemd
+service passes it. Include it whenever you start the daemon yourself and want
+the web app to drive this machine.
+
+Factory Desktop starts or adopts the same daemon on port `37643` when it opens,
+so you do not need both. Stop the service before launching a foreground daemon
+on that port, and vice versa.
+
+### 3. Verify
+
+```bash
+curl -s 127.0.0.1:37643/health   # -> factory-daemon ok
+droid doctor
+```
+
+Then open <https://app.factory.ai>, select this computer, and start a session.
+
+Notes:
+
+- Keep the daemon running while you use the web app. Without it the computer
+  shows as offline and sessions cannot start or resume.
+- The daemon binds `127.0.0.1` by default. Do not change `--host` to `0.0.0.0`;
+  remote access goes through Factory's relay, not an open local port.
+- The desktop app and the web app share the same daemon, so sessions started in
+  one appear in the other.
+
 ## Troubleshooting
 
 ### Factory Desktop does not open
