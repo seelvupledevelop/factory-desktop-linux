@@ -7,8 +7,8 @@
 > [factory.ai](https://factory.ai) and the channels Factory operates. Use this
 > port at your own risk.
 
-> **✅ Latest confirmed working package: [`v0.187.0`](https://github.com/seelvupledevelop/factory-desktop-linux/releases/tag/v0.187.0)**
-> (`factory-desktop_0.187.0_amd64.deb` + `Factory-0.187.0.AppImage`, CI-built 2026-09-30). Verified end to end on Linux Mint 22.3 **from a cold start** (no prior droid login): browser sign-in completes via the `factory-desktop://` scheme handler, daemon healthy on 127.0.0.1:37643, `droid doctor` authenticated, app↔daemon WebSocket established, and a real `droid exec` session ran through the daemon. This release also **fixes browser sign-in** — earlier packages (≤ v0.185.0) shipped without the URL-scheme handler, which broke sign-in on fresh machines. Checksums published with the release.
+> **✅ Latest package: [`v1.1.0`](https://github.com/seelvupledevelop/factory-desktop-linux/releases/tag/v1.1.0)**
+> (`factory-desktop_1.1.0_amd64.deb` + `Factory-1.1.0.AppImage`), built from the official **Factory Desktop 1.1.0** macOS DMG fetched from Factory's desktop endpoint. The assembled payload was verified locally: `sha256sum -c checksums.txt` passes, `dpkg-deb --info` reports `Version: 1.1.0` / `amd64`, the daemon-transport and system-droid asar patches are present, no droid binary is bundled in `resources/`, and the `factory-desktop://` scheme handler is registered. Runs on Linux Mint (x64). Earlier releases (≤ v0.185.0) shipped without the URL-scheme handler and could not complete browser sign-in. Checksums ship with the release.
 
 Factory Desktop running natively on Linux, with `.deb`, `.rpm`, and AppImage
 packages built from Factory's official Desktop release.
@@ -32,7 +32,7 @@ gh workflow run release.yml --ref master
 
 ## Install
 
-Open the [latest release](https://github.com/ThewindMom/factory-desktop-linux/releases/latest)
+Open the [latest release](https://github.com/seelvupledevelop/factory-desktop-linux/releases/latest)
 and download the package for your distribution.
 
 ### Ubuntu, Debian, Mint, Pop!_OS, Elementary, Zorin
@@ -177,7 +177,7 @@ factory-update-manager rollback
 ## Build from Source
 
 Most users should install a package from
-[Releases](https://github.com/ThewindMom/factory-desktop-linux/releases/latest).
+[Releases](https://github.com/seelvupledevelop/factory-desktop-linux/releases/latest).
 Building locally is intended for contributors and unsupported distributions.
 
 ### Prerequisites
@@ -192,7 +192,7 @@ Building locally is intended for contributors and unsupported distributions.
 Clone and prepare the project:
 
 ```bash
-git clone https://github.com/ThewindMom/factory-desktop-linux.git
+git clone https://github.com/seelvupledevelop/factory-desktop-linux.git
 cd factory-desktop-linux
 npm ci
 npm run build
