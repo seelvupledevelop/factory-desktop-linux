@@ -17,6 +17,33 @@ This community port keeps the familiar Factory interface and adds Linux-native
 window controls, updates, and daemon integration. It is unofficial and is not
 affiliated with or supported by Factory.
 
+## Download
+
+Current release: [`v1.1.0`](https://github.com/seelvupledevelop/factory-desktop-linux/releases/tag/v1.1.0)
+
+| Package | Download |
+|---|---|
+| Debian / Ubuntu / Mint (amd64) | [`factory-desktop_1.1.0_amd64.deb`](https://github.com/seelvupledevelop/factory-desktop-linux/releases/download/v1.1.0/factory-desktop_1.1.0_amd64.deb) |
+| Portable AppImage (x86_64) | [`Factory-1.1.0.AppImage`](https://github.com/seelvupledevelop/factory-desktop-linux/releases/download/v1.1.0/Factory-1.1.0.AppImage) |
+| SHA-256 checksums | [`checksums.txt`](https://github.com/seelvupledevelop/factory-desktop-linux/releases/download/v1.1.0/checksums.txt) |
+
+## What changed in 1.1.0
+
+- **Daemon port 37643 fixed.** On 0.208.0 and earlier the daemon could fail to
+  serve `127.0.0.1:37643`, leaving Factory Desktop and the web app without a
+  session backend. The 1.1.0 package forces WebSocket transport and comes up
+  healthy: `curl -s 127.0.0.1:37643/health` returns `factory-daemon ok`, and the
+  startup tracker reports `outcome: "healthy"` with the daemon ready on port
+  37643.
+- **HTTP 400 "Unknown model" fixed.** Desktop 1.1.0 and the `droid` CLI 1.1.0
+  share the same model catalog, so sending a message no longer fails with
+  `400 status code (no body)` / `Unknown model` when the desktop is newer than
+  the installed CLI.
+- **Rebuilt from the official 1.1.0 DMG**, including its archive-root
+  `Factory.app` layout.
+- **Browser sign-in** still uses the registered `factory-desktop://` scheme
+  handler, and the package still bundles no droid binary.
+
 ## Automatic builds
 
 This fork checks Factory's upstream version **daily at 08:00 UTC** and
